@@ -1,7 +1,17 @@
-import type { NextConfig } from "next";
+// next.config.ts
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+	images: {
+		remotePatterns: [
+			{
+				protocol: 'https',
+				hostname: 'images.unsplash.com',
+				// ถ้าจะเผื่อ path ทั้งหมด ก็กางได้เลย
+				pathname: '/**',
+			},
+		],
+	},
+}
 
-export default nextConfig;
+export default nextConfig
