@@ -1,6 +1,14 @@
 import { db } from '@/db'
-import { provinces, vehicles, warehouseItems, warehouseStatusEnum } from '@/db/schema'
+import {
+	branches,
+	categories,
+	provinces,
+	vehicles,
+	warehouseItems,
+	warehouseStatusEnum,
+} from '@/db/schema'
 import { generateAndUploadQRCode, generateQRCodeData } from '@/lib/qrcode'
+import { generateSKU } from '@/lib/sku'
 import { uploadFile } from '@/lib/storage'
 import { eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -10,12 +18,12 @@ type WarehouseStatus = (typeof warehouseStatusEnum.enumValues)[number]
 
 export const GET = async () => {
 	try {
-		// Fetch all items with delivery vehicle relations
+		// Fetch all items with category, branch, and vehicle relations
 		const rawItems = await db
 			.select({
 				id: warehouseItems.id,
+				stockId: warehouseItems.stockId,
 				productName: warehouseItems.productName,
-				category: warehouseItems.category,
 				productImage: warehouseItems.productImage,
 				storageLocation: warehouseItems.storageLocation,
 				palletCount: warehouseItems.palletCount,
@@ -30,6 +38,17 @@ export const GET = async () => {
 				qrCodeImage: warehouseItems.qrCodeImage,
 				createdAt: warehouseItems.createdAt,
 				updatedAt: warehouseItems.updatedAt,
+				// Category info
+				categoryId: categories.id,
+				categoryCode: categories.code,
+				categoryNameTh: categories.nameTh,
+				categoryNameEn: categories.nameEn,
+				// Branch info
+				branchId: branches.id,
+				branchCode: branches.code,
+				branchNameTh: branches.nameTh,
+				branchNameEn: branches.nameEn,
+				branchLocation: branches.location,
 				// Delivery vehicle info
 				deliveryVehiclePlateNumber: vehicles.plateNumber,
 				deliveryVehicleProvinceId: provinces.id,
@@ -37,6 +56,8 @@ export const GET = async () => {
 				deliveryVehicleProvinceEn: provinces.nameEn,
 			})
 			.from(warehouseItems)
+			.leftJoin(categories, eq(warehouseItems.categoryId, categories.id))
+			.leftJoin(branches, eq(warehouseItems.branchId, branches.id))
 			.leftJoin(vehicles, eq(warehouseItems.deliveryVehicleId, vehicles.id))
 			.leftJoin(provinces, eq(vehicles.provinceId, provinces.id))
 
@@ -65,8 +86,8 @@ export const GET = async () => {
 		// Transform to nested structure
 		const allItems = rawItems.map((item) => ({
 			id: item.id,
+			stockId: item.stockId,
 			productName: item.productName,
-			category: item.category,
 			productImage: item.productImage,
 			storageLocation: item.storageLocation,
 			palletCount: item.palletCount,
@@ -79,6 +100,23 @@ export const GET = async () => {
 			qrCodeImage: item.qrCodeImage,
 			createdAt: item.createdAt,
 			updatedAt: item.updatedAt,
+			category: item.categoryId
+				? {
+						id: item.categoryId,
+						code: item.categoryCode,
+						nameTh: item.categoryNameTh,
+						nameEn: item.categoryNameEn,
+				  }
+				: null,
+			branch: item.branchId
+				? {
+						id: item.branchId,
+						code: item.branchCode,
+						nameTh: item.branchNameTh,
+						nameEn: item.branchNameEn,
+						location: item.branchLocation,
+				  }
+				: null,
 			deliveryVehicle: item.deliveryVehicleId
 				? {
 						id: item.deliveryVehicleId,
@@ -104,16 +142,55 @@ export const POST = async (request: Request) => {
 	try {
 		const formData = await request.formData()
 
-		// Extract vehicle data
+		// Extract and validate branch and category
+		const branchIdStr = formData.get('branchId') as string
+		const categoryIdStr = formData.get('categoryId') as string
+
+		if (!branchIdStr || !categoryIdStr) {
+			return NextResponse.json({ error: 'กรุณาระบุสาขาและหมวดหมู่สินค้า' }, { status: 400 })
+		}
+
+		const branchId = Number.parseInt(branchIdStr, 10)
+		const categoryId = Number.parseInt(categoryIdStr, 10)
+
+		if (Number.isNaN(branchId) || Number.isNaN(categoryId)) {
+			return NextResponse.json({ error: 'รหัสสาขาหรือหมวดหมู่ไม่ถูกต้อง' }, { status: 400 })
+		}
+
+		// Extract vehicle data with validation
 		const deliveryPlateNumber = formData.get('deliveryVehiclePlateNumber') as string
-		const deliveryProvinceId = Number.parseInt(
-			formData.get('deliveryVehicleProvinceId') as string,
-			10,
-		)
+		const deliveryProvinceIdStr = formData.get('deliveryVehicleProvinceId') as string
+
+		if (!deliveryPlateNumber || !deliveryProvinceIdStr) {
+			return NextResponse.json({ error: 'กรุณาระบุทะเบียนรถส่งและจังหวัด' }, { status: 400 })
+		}
+
+		const deliveryProvinceId = Number.parseInt(deliveryProvinceIdStr, 10)
+		if (Number.isNaN(deliveryProvinceId)) {
+			return NextResponse.json({ error: 'รหัสจังหวัดไม่ถูกต้อง' }, { status: 400 })
+		}
+
 		const pickupPlateNumber = formData.get('pickupVehiclePlateNumber') as string | null
-		const pickupProvinceId = formData.get('pickupVehicleProvinceId')
-			? Number.parseInt(formData.get('pickupVehicleProvinceId') as string, 10)
-			: null
+		const pickupProvinceIdStr = formData.get('pickupVehicleProvinceId') as string | null
+		let pickupProvinceId: number | null = null
+
+		// Validate pickup vehicle: ถ้ามีอย่างใดอย่างหนึ่ง ต้องมีทั้งคู่
+		if (pickupPlateNumber || pickupProvinceIdStr) {
+			if (!pickupPlateNumber || !pickupProvinceIdStr) {
+				return NextResponse.json(
+					{ error: 'ถ้าระบุรถรับต้องระบุทั้งทะเบียนและจังหวัด' },
+					{ status: 400 },
+				)
+			}
+
+			pickupProvinceId = Number.parseInt(pickupProvinceIdStr, 10)
+			if (Number.isNaN(pickupProvinceId)) {
+				return NextResponse.json({ error: 'รหัสจังหวัดรถรับไม่ถูกต้อง' }, { status: 400 })
+			}
+		}
+
+		// Generate SKU
+		const stockId = await generateSKU(branchId, categoryId)
 
 		// Create delivery vehicle
 		const [deliveryVehicle] = await db
@@ -125,7 +202,7 @@ export const POST = async (request: Request) => {
 			.returning()
 
 		// Create pickup vehicle if provided
-		let pickupVehicleId: number | null = null
+		let pickupVehicleId: string | null = null
 		if (pickupPlateNumber && pickupProvinceId) {
 			const [pickupVehicle] = await db
 				.insert(vehicles)
@@ -139,8 +216,10 @@ export const POST = async (request: Request) => {
 
 		// Extract warehouse item data
 		const data = {
+			stockId,
+			branchId,
+			categoryId,
 			productName: formData.get('productName') as string,
-			category: formData.get('category') as string,
 			storageLocation: formData.get('storageLocation') as string,
 			palletCount: Number.parseInt(formData.get('palletCount') as string, 10),
 			packageCount: Number.parseInt(formData.get('packageCount') as string, 10),
@@ -186,12 +265,8 @@ export const POST = async (request: Request) => {
 		// Generate QR Code
 		let qrCodeImage: string | null = null
 		try {
-			const qrData = generateQRCodeData(newItem.id, {
-				productName: newItem.productName,
-				storageLocation: newItem.storageLocation,
-				containerNumber: newItem.containerNumber,
-			})
-			const qrFilename = `warehouse-item-${newItem.id}-${Date.now()}.png`
+			const qrData = generateQRCodeData(newItem.stockId)
+			const qrFilename = `warehouse-item-${newItem.stockId}-${Date.now()}.png`
 			qrCodeImage = await generateAndUploadQRCode(qrData, qrFilename)
 
 			// Update item with QR code URL

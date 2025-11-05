@@ -28,7 +28,7 @@ export type UpdateWarehouseItemInput = Partial<CreateWarehouseItemInput>
 
 // Interface สำหรับ response จาก API
 export interface WarehouseItemResponse {
-	id: number
+	id: string
 	productName: string
 	category: string
 	productImage: string | null
@@ -37,10 +37,10 @@ export interface WarehouseItemResponse {
 	packageCount: number
 	itemCount: number
 	entryDate: Date
-	deliveryVehicleId: number | null
+	deliveryVehicleId: string | null
 	containerNumber: string
 	exitDate: Date | null
-	pickupVehicleId: number | null
+	pickupVehicleId: string | null
 	status: WarehouseStatus
 	qrCodeImage: string | null
 	createdAt: Date | null
@@ -50,7 +50,7 @@ export interface WarehouseItemResponse {
 // Interface สำหรับ response พร้อม vehicle และ province relations
 export interface WarehouseItemWithRelations extends WarehouseItemResponse {
 	deliveryVehicle?: {
-		id: number
+		id: string
 		plateNumber: string
 		province: {
 			id: number
@@ -59,7 +59,7 @@ export interface WarehouseItemWithRelations extends WarehouseItemResponse {
 		}
 	} | null
 	pickupVehicle?: {
-		id: number
+		id: string
 		plateNumber: string
 		province: {
 			id: number

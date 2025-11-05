@@ -1,7 +1,13 @@
 import { db } from '@/db'
-import { provinces, vehicles, warehouseItems, warehouseStatusEnum } from '@/db/schema'
+import {
+	branches,
+	categories,
+	provinces,
+	vehicles,
+	warehouseItems,
+	warehouseStatusEnum,
+} from '@/db/schema'
 import { deleteFile, uploadFile } from '@/lib/storage'
-import type { WarehouseItemResponse } from '@/types/api'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
@@ -19,10 +25,10 @@ function extractFormDataUpdates(formData: FormData) {
 		packageCount?: number
 		itemCount?: number
 		entryDate?: Date
-		deliveryVehicleId?: number
+		deliveryVehicleId?: string
 		containerNumber?: string
 		exitDate?: Date | null
-		pickupVehicleId?: number | null
+		pickupVehicleId?: string | null
 		status?: WarehouseStatus
 	} = {}
 
@@ -58,12 +64,18 @@ export const GET = async (request: Request, { params }: { params: Promise<{ id: 
 	try {
 		const { id } = await params
 
-		// Fetch with delivery vehicle
+		// ค้นหาด้วย UUID หรือ stockId (SKU) ก็ได้
+		// SKU format: BKK-ELEC-20250115-0001 (มี 3 เครื่องหมาย "-")
+		// UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (มี 4 เครื่องหมาย "-")
+		const dashCount = (id.match(/-/g) || []).length
+		const isStockId = dashCount === 3
+
+		const whereCondition = isStockId ? eq(warehouseItems.stockId, id) : eq(warehouseItems.id, id) // Fetch with category, branch, and delivery vehicle
 		const rawItems = await db
 			.select({
 				id: warehouseItems.id,
+				stockId: warehouseItems.stockId,
 				productName: warehouseItems.productName,
-				category: warehouseItems.category,
 				productImage: warehouseItems.productImage,
 				storageLocation: warehouseItems.storageLocation,
 				palletCount: warehouseItems.palletCount,
@@ -78,6 +90,17 @@ export const GET = async (request: Request, { params }: { params: Promise<{ id: 
 				qrCodeImage: warehouseItems.qrCodeImage,
 				createdAt: warehouseItems.createdAt,
 				updatedAt: warehouseItems.updatedAt,
+				// Category info
+				categoryId: categories.id,
+				categoryCode: categories.code,
+				categoryNameTh: categories.nameTh,
+				categoryNameEn: categories.nameEn,
+				// Branch info
+				branchId: branches.id,
+				branchCode: branches.code,
+				branchNameTh: branches.nameTh,
+				branchNameEn: branches.nameEn,
+				branchLocation: branches.location,
 				// Delivery vehicle info
 				deliveryVehiclePlateNumber: vehicles.plateNumber,
 				deliveryVehicleProvinceId: provinces.id,
@@ -85,9 +108,11 @@ export const GET = async (request: Request, { params }: { params: Promise<{ id: 
 				deliveryVehicleProvinceEn: provinces.nameEn,
 			})
 			.from(warehouseItems)
+			.leftJoin(categories, eq(warehouseItems.categoryId, categories.id))
+			.leftJoin(branches, eq(warehouseItems.branchId, branches.id))
 			.leftJoin(vehicles, eq(warehouseItems.deliveryVehicleId, vehicles.id))
 			.leftJoin(provinces, eq(vehicles.provinceId, provinces.id))
-			.where(eq(warehouseItems.id, Number.parseInt(id)))
+			.where(whereCondition)
 
 		if (rawItems.length === 0) {
 			return NextResponse.json({ error: 'Warehouse item not found' }, { status: 404 })
@@ -118,8 +143,8 @@ export const GET = async (request: Request, { params }: { params: Promise<{ id: 
 		// Transform to nested structure
 		const item = {
 			id: rawItem.id,
+			stockId: rawItem.stockId,
 			productName: rawItem.productName,
-			category: rawItem.category,
 			productImage: rawItem.productImage,
 			storageLocation: rawItem.storageLocation,
 			palletCount: rawItem.palletCount,
@@ -132,6 +157,23 @@ export const GET = async (request: Request, { params }: { params: Promise<{ id: 
 			qrCodeImage: rawItem.qrCodeImage,
 			createdAt: rawItem.createdAt,
 			updatedAt: rawItem.updatedAt,
+			category: rawItem.categoryId
+				? {
+						id: rawItem.categoryId,
+						code: rawItem.categoryCode,
+						nameTh: rawItem.categoryNameTh,
+						nameEn: rawItem.categoryNameEn,
+				  }
+				: null,
+			branch: rawItem.branchId
+				? {
+						id: rawItem.branchId,
+						code: rawItem.branchCode,
+						nameTh: rawItem.branchNameTh,
+						nameEn: rawItem.branchNameEn,
+						location: rawItem.branchLocation,
+				  }
+				: null,
 			deliveryVehicle: rawItem.deliveryVehicleId
 				? {
 						id: rawItem.deliveryVehicleId,
@@ -156,10 +198,7 @@ export const PATCH = async (request: Request, { params }: { params: Promise<{ id
 		const { id } = await params
 
 		// Get existing item
-		const existing = await db
-			.select()
-			.from(warehouseItems)
-			.where(eq(warehouseItems.id, Number.parseInt(id)))
+		const existing = await db.select().from(warehouseItems).where(eq(warehouseItems.id, id))
 
 		if (existing.length === 0) {
 			return NextResponse.json({ error: 'Warehouse item not found' }, { status: 404 })
@@ -240,10 +279,12 @@ export const PATCH = async (request: Request, { params }: { params: Promise<{ id
 				...updateData,
 				updatedAt: new Date(),
 			})
-			.where(eq(warehouseItems.id, Number.parseInt(id)))
+			.where(eq(warehouseItems.id, id))
 			.returning()
 
-		return NextResponse.json<WarehouseItemResponse>(updatedItem[0])
+		// Note: Should fetch full item with relations for complete response
+		// For now just return the updated item
+		return NextResponse.json(updatedItem[0])
 	} catch (error) {
 		console.error('Error updating warehouse item:', error)
 		return NextResponse.json({ error: 'Failed to update warehouse item' }, { status: 500 })
@@ -255,10 +296,7 @@ export const DELETE = async (request: Request, { params }: { params: Promise<{ i
 		const { id } = await params
 
 		// Get existing item to delete image
-		const existing = await db
-			.select()
-			.from(warehouseItems)
-			.where(eq(warehouseItems.id, Number.parseInt(id)))
+		const existing = await db.select().from(warehouseItems).where(eq(warehouseItems.id, id))
 
 		if (existing.length === 0) {
 			return NextResponse.json({ error: 'Warehouse item not found' }, { status: 404 })
@@ -277,7 +315,7 @@ export const DELETE = async (request: Request, { params }: { params: Promise<{ i
 		}
 
 		// Delete from database
-		await db.delete(warehouseItems).where(eq(warehouseItems.id, Number.parseInt(id)))
+		await db.delete(warehouseItems).where(eq(warehouseItems.id, id))
 
 		return NextResponse.json({ success: true })
 	} catch (error) {

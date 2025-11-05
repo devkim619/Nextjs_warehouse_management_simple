@@ -16,13 +16,8 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { warehouseStatusMap } from '@/constants/warehouse-status'
 import { WarehouseItem } from '@/types/warehouse'
-
-const statusMap = {
-	in_stock: { label: 'ในคลัง', variant: 'default' as const },
-	out_for_delivery: { label: 'กำลังจัดส่ง', variant: 'secondary' as const },
-	delivered: { label: 'ส่งแล้ว', variant: 'outline' as const },
-}
 
 interface ColumnsConfig {
 	onEdit?: (item: WarehouseItem) => void
@@ -60,6 +55,24 @@ export function createColumns(config?: ColumnsConfig): ColumnDef<WarehouseItem>[
 			},
 		},
 		{
+			accessorKey: 'stockId',
+			header: ({ column }) => {
+				return (
+					<Button
+						variant='ghost'
+						onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+					>
+						รหัสสินค้า (SKU)
+						<ArrowUpDown className='ml-2 size-4' />
+					</Button>
+				)
+			},
+			cell: ({ row }) => {
+				const stockId = row.getValue('stockId') as string
+				return <span className='font-mono text-[11px]'>{stockId}</span>
+			},
+		},
+		{
 			accessorKey: 'productName',
 			header: ({ column }) => {
 				return (
@@ -78,7 +91,7 @@ export function createColumns(config?: ColumnsConfig): ColumnDef<WarehouseItem>[
 				return (
 					<div className='flex flex-col'>
 						<span>{productName}</span>
-						<span className='text-xs text-muted-foreground'>{category}</span>
+						<span className='text-xs text-muted-foreground'>{category?.nameTh || 'ไม่ระบุ'}</span>
 					</div>
 				)
 			},
@@ -114,9 +127,9 @@ export function createColumns(config?: ColumnsConfig): ColumnDef<WarehouseItem>[
 				const date = row.getValue('entryDate') as Date
 				return (
 					<div className='flex flex-col'>
-						<span className='text-sm'>{format(date, 'dd/MM/yyyy', { locale: th })}</span>
+						<span className='text-xs'>{format(date, 'dd/MM/yyyy', { locale: th })}</span>
 						<span className='text-xs text-muted-foreground'>
-							{format(date, 'hh:mm', { locale: th })}
+							{format(date, 'HH:mm', { locale: th })}
 						</span>
 					</div>
 				)
@@ -126,10 +139,8 @@ export function createColumns(config?: ColumnsConfig): ColumnDef<WarehouseItem>[
 			accessorKey: 'deliveryVehicle',
 			header: 'ทะเบียนรถส่งสินค้า',
 			cell: ({ row }) => {
-				const vehicle = row.getValue('deliveryVehicle') as {
-					plateNumber: string
-					provinceTh: string
-				}
+				const vehicle = row.original.deliveryVehicle
+				if (!vehicle) return '-'
 				return (
 					<div className='flex flex-col'>
 						<span>{vehicle.plateNumber}</span>
@@ -207,9 +218,9 @@ export function createColumns(config?: ColumnsConfig): ColumnDef<WarehouseItem>[
 				const date = row.getValue('exitDate') as Date | undefined
 				return date ? (
 					<div className='flex flex-col'>
-						<span className='text-sm'>{format(date, 'dd/MM/yyyy', { locale: th })}</span>
+						<span className='text-xs'>{format(date, 'dd/MM/yyyy', { locale: th })}</span>
 						<span className='text-xs text-muted-foreground'>
-							{format(date, 'hh:mm', { locale: th })}
+							{format(date, 'HH:mm', { locale: th })}
 						</span>
 					</div>
 				) : (
@@ -221,16 +232,13 @@ export function createColumns(config?: ColumnsConfig): ColumnDef<WarehouseItem>[
 			accessorKey: 'pickupVehicle',
 			header: 'ทะเบียนรถรับสินค้า',
 			cell: ({ row }) => {
-				const vehicle = row.getValue('pickupVehicle') as
-					| { plateNumber: string; provinceTh: string }
-					| undefined
-				return vehicle ? (
+				const vehicle = row.original.pickupVehicle
+				if (!vehicle) return '-'
+				return (
 					<div className='flex flex-col'>
-						<span className='text-sm font-medium'>{vehicle.plateNumber}</span>
+						<span className='text-sm font-normal'>{vehicle.plateNumber}</span>
 						<span className='text-xs text-muted-foreground'>{vehicle.provinceTh}</span>
 					</div>
-				) : (
-					'-'
 				)
 			},
 		},
@@ -238,10 +246,43 @@ export function createColumns(config?: ColumnsConfig): ColumnDef<WarehouseItem>[
 			accessorKey: 'status',
 			header: 'สถานะ',
 			cell: ({ row }) => {
-				const status = row.getValue('status') as keyof typeof statusMap
-				const statusInfo = statusMap[status]
+				const status = row.getValue('status') as WarehouseItem['status']
+				const statusInfo = warehouseStatusMap[status]
 
-				return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+				return (
+					<Badge
+						variant={statusInfo.variant}
+						className={statusInfo.className}
+					>
+						{statusInfo.label}
+					</Badge>
+				)
+			},
+		},
+		{
+			accessorKey: 'qrCodeImage',
+			header: 'QR Code',
+			cell: ({ row }) => {
+				const qrCodeUrl = row.getValue('qrCodeImage') as string | null
+				const stockId = row.original.stockId
+
+				return (
+					<div className='flex items-center justify-center'>
+						{qrCodeUrl ? (
+							<Image
+								src={qrCodeUrl}
+								alt={`QR Code ${stockId}`}
+								width={60}
+								height={60}
+								className='rounded'
+							/>
+						) : (
+							<div className='w-[60px] h-[60px] bg-muted rounded-md flex items-center justify-center'>
+								<span className='text-xs text-muted-foreground text-center'>ไม่มี QR</span>
+							</div>
+						)}
+					</div>
+				)
 			},
 		},
 		{

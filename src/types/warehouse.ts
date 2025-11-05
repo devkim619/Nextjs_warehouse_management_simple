@@ -1,39 +1,56 @@
 export interface VehicleInfo {
-	id: number
+	id: string
 	plateNumber: string
 	provinceId: number
 	provinceTh: string
 	provinceEn: string
 }
 
+export interface Category {
+	id: number
+	code: string
+	nameTh: string
+	nameEn: string
+	description?: string | null
+	createdAt?: Date
+	updatedAt?: Date
+}
+
+export interface Branch {
+	id: number
+	code: string
+	nameTh: string
+	nameEn: string
+	location?: string | null
+	isActive?: boolean
+	createdAt?: Date
+	updatedAt?: Date
+}
+
+export type WarehouseStatus = 'in_stock' | 'out_for_delivery' | 'delivered'
+
 export interface WarehouseItem {
 	id: string
-	// วันที่และเวลาเข้า
-	entryDate: Date
-	// ข้อมูลรถมาส่ง
-	deliveryVehicle: VehicleInfo
-	// หมายเลขตู้คอนเทนเนอร์
-	containerNumber: string
-	// รูปสินค้า (URL)
-	productImage?: string
-	// ชื่อสินค้า
+	stockId: string
+	branchId: number
+	categoryId: number
 	productName: string
-	// หมวดหมู่สินค้า
-	category: string
-	// ที่จัดเก็บ
+	productImage: string | null
 	storageLocation: string
-	// จำนวนพาเลท
 	palletCount: number
-	// จำนวนแพ็คเกจ
 	packageCount: number
-	// จำนวนชิ้น
 	itemCount: number
-	// วันที่และเวลาออก
-	exitDate?: Date
-	// ข้อมูลรถมารับ
-	pickupVehicle?: VehicleInfo
-	// สถานะ
-	status: 'in_stock' | 'out_for_delivery' | 'delivered'
+	entryDate: Date
+	containerNumber: string
+	exitDate: Date | null
+	status: WarehouseStatus
+	qrCodeImage: string | null
+	createdAt: Date
+	updatedAt: Date
+	category: Category | null
+	branch: Branch | null
+	deliveryVehicle: VehicleInfo | null
+	pickupVehicle: VehicleInfo | null
 }
 
 // หมวดหมู่สินค้า

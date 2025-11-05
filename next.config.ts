@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
 				// ถ้าจะเผื่อ path ทั้งหมด ก็กางได้เลย
 				pathname: '/**',
 			},
+			{
+				protocol: 'https',
+				hostname: '*.supabase.co', // หรือ '**.supabase.co' ก็ได้ใน Next รุ่นใหม่
+				pathname: '/storage/v1/object/public/**',
+			},
 		],
 	},
 }

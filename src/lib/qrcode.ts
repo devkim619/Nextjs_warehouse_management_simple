@@ -39,16 +39,13 @@ export async function generateAndUploadQRCode(data: string, filename: string): P
 
 /**
  * Generate QR code data สำหรับ warehouse item
- * @param itemId ID ของสินค้า
- * @param itemData ข้อมูลสินค้าที่จะใส่ใน QR code
- * @returns JSON string ที่จะเข้ารหัสใน QR code
+ * @param stockId SKU ของสินค้า (เช่น BKK-ELEC-20250115-0001)
+ * @returns URL สำหรับเข้าถึงหน้ารายละเอียดสินค้า (ใช้ stockId แทน UUID)
  */
-export function generateQRCodeData(itemId: number, itemData?: Record<string, unknown>): string {
-	const data = {
-		id: itemId,
-		type: 'warehouse_item',
-		timestamp: new Date().toISOString(),
-		...itemData,
-	}
-	return JSON.stringify(data)
+export function generateQRCodeData(stockId: string): string {
+	// สร้าง URL สำหรับเข้าถึงหน้ารายละเอียดด้วย SKU
+	const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+	const itemUrl = `${baseUrl}/warehouse/${stockId}`
+
+	return itemUrl
 }

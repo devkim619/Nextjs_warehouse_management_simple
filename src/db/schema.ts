@@ -1,4 +1,13 @@
-import { integer, pgEnum, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core'
+import {
+	boolean,
+	integer,
+	pgEnum,
+	pgTable,
+	text,
+	timestamp,
+	uuid,
+	varchar,
+} from 'drizzle-orm/pg-core'
 
 // Enum สำหรับสถานะสินค้า
 export const warehouseStatusEnum = pgEnum('warehouse_status', [
@@ -6,6 +15,29 @@ export const warehouseStatusEnum = pgEnum('warehouse_status', [
 	'out_for_delivery',
 	'delivered',
 ])
+
+// Table สาขา (branches) - รองรับหลายสาขา
+export const branches = pgTable('branches', {
+	id: integer('id').primaryKey(),
+	code: varchar('code', { length: 10 }).notNull().unique(), // BKK, CNX, PKT
+	nameTh: varchar('name_th', { length: 150 }).notNull(),
+	nameEn: varchar('name_en', { length: 150 }).notNull(),
+	location: text('location'),
+	isActive: boolean('is_active').notNull().default(true),
+	createdAt: timestamp('created_at').defaultNow(),
+	updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+// Table หมวดหมู่สินค้า (categories)
+export const categories = pgTable('categories', {
+	id: integer('id').primaryKey(),
+	code: varchar('code', { length: 10 }).notNull().unique(), // ELEC, FURN, FOOD
+	nameTh: varchar('name_th', { length: 100 }).notNull(),
+	nameEn: varchar('name_en', { length: 100 }).notNull(),
+	description: text('description'),
+	createdAt: timestamp('created_at').defaultNow(),
+	updatedAt: timestamp('updated_at').defaultNow(),
+})
 
 // Table จังหวัด (provinces)
 export const provinces = pgTable('provinces', {
@@ -20,7 +52,7 @@ export const provinces = pgTable('provinces', {
 
 // Table ยานพาหนะ (vehicles)
 export const vehicles = pgTable('vehicles', {
-	id: serial('id').primaryKey(),
+	id: uuid('id').primaryKey().defaultRandom(),
 	plateNumber: varchar('plate_number', { length: 20 }).notNull(), // เลขทะเบียน เช่น "กก 1234"
 	provinceId: integer('province_id')
 		.notNull()
@@ -30,11 +62,19 @@ export const vehicles = pgTable('vehicles', {
 })
 
 export const warehouseItems = pgTable('warehouse_items', {
-	id: serial('id').primaryKey(),
+	id: uuid('id').primaryKey().defaultRandom(),
+	stockId: varchar('stock_id', { length: 50 }).notNull().unique(), // SKU: BKK-ELEC-20250115-0001
+
+	// ความสัมพันธ์
+	branchId: integer('branch_id')
+		.notNull()
+		.references(() => branches.id),
+	categoryId: integer('category_id')
+		.notNull()
+		.references(() => categories.id),
 
 	// ข้อมูลสินค้า
 	productName: varchar('product_name', { length: 255 }).notNull(),
-	category: varchar('category', { length: 100 }).notNull(),
 	productImage: text('product_image'),
 
 	// การจัดเก็บ
@@ -45,12 +85,12 @@ export const warehouseItems = pgTable('warehouse_items', {
 
 	// การเข้าคลัง
 	entryDate: timestamp('entry_date').notNull().defaultNow(),
-	deliveryVehicleId: integer('delivery_vehicle_id').references(() => vehicles.id), // FK to vehicles
+	deliveryVehicleId: uuid('delivery_vehicle_id').references(() => vehicles.id), // FK to vehicles
 	containerNumber: varchar('container_number', { length: 50 }).notNull(),
 
 	// การออกจากคลัง
 	exitDate: timestamp('exit_date'),
-	pickupVehicleId: integer('pickup_vehicle_id').references(() => vehicles.id), // FK to vehicles
+	pickupVehicleId: uuid('pickup_vehicle_id').references(() => vehicles.id), // FK to vehicles
 
 	// สถานะ
 	status: warehouseStatusEnum('status').notNull().default('in_stock'),
@@ -62,6 +102,12 @@ export const warehouseItems = pgTable('warehouse_items', {
 	createdAt: timestamp('created_at').defaultNow(),
 	updatedAt: timestamp('updated_at').defaultNow(),
 })
+
+export type Branch = typeof branches.$inferSelect
+export type NewBranch = typeof branches.$inferInsert
+
+export type Category = typeof categories.$inferSelect
+export type NewCategory = typeof categories.$inferInsert
 
 export type Province = typeof provinces.$inferSelect
 export type NewProvince = typeof provinces.$inferInsert

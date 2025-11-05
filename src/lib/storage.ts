@@ -43,12 +43,57 @@ export const s3Client = new S3Client({
  */
 export async function uploadFile(file: File, path: string): Promise<string> {
 	const buffer = Buffer.from(await file.arrayBuffer())
+	let uploadBuffer = buffer
+	let contentType = file.type
+
+	if (file.type && file.type.startsWith('image/')) {
+		try {
+			const { default: sharp } = await import('sharp')
+			const maxDimension = 1600
+			const metadata = await sharp(buffer, { failOnError: false }).metadata()
+			let pipeline = sharp(buffer, { failOnError: false }).rotate()
+
+			if (
+				(metadata.width && metadata.width > maxDimension) ||
+				(metadata.height && metadata.height > maxDimension)
+			) {
+				pipeline = pipeline.resize({
+					width: maxDimension,
+					height: maxDimension,
+					fit: 'inside',
+					withoutEnlargement: true,
+				})
+			}
+
+			let optimizedContentType = contentType
+
+			if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
+				pipeline = pipeline.jpeg({ quality: 80, mozjpeg: true })
+				optimizedContentType = 'image/jpeg'
+			} else if (file.type === 'image/png') {
+				pipeline = pipeline.png({ compressionLevel: 9, palette: true })
+				optimizedContentType = 'image/png'
+			} else if (file.type === 'image/webp') {
+				pipeline = pipeline.webp({ quality: 80 })
+				optimizedContentType = 'image/webp'
+			}
+
+			const optimizedBuffer = await pipeline.toBuffer()
+
+			if (optimizedBuffer.length > 0 && optimizedBuffer.length < buffer.length) {
+				uploadBuffer = optimizedBuffer
+				contentType = optimizedContentType
+			}
+		} catch (error) {
+			console.warn('[storage] image optimization skipped', error)
+		}
+	}
 
 	const command = new PutObjectCommand({
 		Bucket: bucketName,
 		Key: path,
-		Body: buffer,
-		ContentType: file.type,
+		Body: uploadBuffer,
+		ContentType: contentType,
 		// Note: Supabase Storage typically manages permissions via bucket policy.
 		// Avoid relying on ACL here; leave permission control to Supabase settings.
 	})

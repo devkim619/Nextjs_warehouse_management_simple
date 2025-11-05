@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(bun add:*)",
-      "Bash(bun run dev:*)"
+      "Bash(bun run dev:*)",
+      "Bash(curl:*)",
+      "Bash(bun install:*)"
     ],
     "deny": [],
     "ask": []
