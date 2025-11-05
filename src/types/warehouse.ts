@@ -1,9 +1,9 @@
 export interface VehicleInfo {
 	id: string
-	plateNumber: string
-	provinceId: number
-	provinceTh: string
-	provinceEn: string
+	plateNumber: string | null
+	provinceId: number | null
+	provinceTh: string | null
+	provinceEn: string | null
 }
 
 export interface Category {

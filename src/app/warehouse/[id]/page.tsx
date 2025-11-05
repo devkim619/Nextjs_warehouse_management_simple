@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
+import { getWarehouseItemById } from '@/actions/warehouse-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,31 +22,31 @@ interface WarehouseItemDetail {
 	productName: string
 	category: {
 		id: number
-		code: string
-		nameTh: string
-		nameEn: string
+		code: string | null
+		nameTh: string | null
+		nameEn: string | null
 	} | null
 	branch: {
 		id: number
-		code: string
-		nameTh: string
-		nameEn: string
+		code: string | null
+		nameTh: string | null
+		nameEn: string | null
 		location: string | null
 	} | null
-	productImage?: string
+	productImage?: string | null
 	storageLocation: string
 	palletCount: number
 	packageCount: number
 	itemCount: number
-	entryDate: string
-	deliveryVehicle: VehicleInfo
+	entryDate: Date | string | null
+	deliveryVehicle: VehicleInfo | null
 	containerNumber: string
-	exitDate?: string
-	pickupVehicle?: VehicleInfo
+	exitDate?: Date | string | null
+	pickupVehicle?: VehicleInfo | null
 	status: WarehouseStatus
-	qrCodeImage?: string
-	createdAt: string
-	updatedAt: string
+	qrCodeImage?: string | null
+	createdAt: Date | string | null
+	updatedAt: Date | string | null
 }
 
 export default function WarehouseItemDetailPage() {
@@ -59,13 +60,12 @@ export default function WarehouseItemDetailPage() {
 		const fetchItem = async () => {
 			try {
 				setLoading(true)
-				const response = await fetch(`/api/warehouses/${params.id}`)
+				const data = await getWarehouseItemById(params.id as string)
 
-				if (!response.ok) {
+				if (!data) {
 					throw new Error('ไม่พบข้อมูลสินค้า')
 				}
 
-				const data = await response.json()
 				setItem(data)
 			} catch (err) {
 				setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
@@ -231,29 +231,33 @@ export default function WarehouseItemDetailPage() {
 				</CardHeader>
 				<CardContent className='space-y-4'>
 					{/* วันที่เข้า */}
-					<div>
-						<div className='flex items-center gap-2 mb-2'>
-							<Calendar className='h-4 w-4 text-muted-foreground' />
-							<p className='text-sm font-medium text-muted-foreground'>วันที่เข้า</p>
+					{item.entryDate && (
+						<div>
+							<div className='flex items-center gap-2 mb-2'>
+								<Calendar className='h-4 w-4 text-muted-foreground' />
+								<p className='text-sm font-medium text-muted-foreground'>วันที่เข้า</p>
+							</div>
+							<p className='text-lg'>
+								{format(new Date(item.entryDate), 'dd/MM/yyyy HH:mm', { locale: th })}
+							</p>
 						</div>
-						<p className='text-lg'>
-							{format(new Date(item.entryDate), 'dd/MM/yyyy HH:mm', { locale: th })}
-						</p>
-					</div>
+					)}
 
 					<Separator />
 
 					{/* รถส่ง */}
-					<div>
-						<p className='text-sm font-medium text-muted-foreground mb-2'>รถมาส่งสินค้า</p>
-						<div className='flex items-center gap-2'>
-							<Truck className='h-5 w-5' />
-							<div>
-								<p className='font-semibold'>{item.deliveryVehicle.plateNumber}</p>
-								<p className='text-sm text-muted-foreground'>{item.deliveryVehicle.provinceTh}</p>
+					{item.deliveryVehicle && (
+						<div>
+							<p className='text-sm font-medium text-muted-foreground mb-2'>รถมาส่งสินค้า</p>
+							<div className='flex items-center gap-2'>
+								<Truck className='h-5 w-5' />
+								<div>
+									<p className='font-semibold'>{item.deliveryVehicle.plateNumber}</p>
+									<p className='text-sm text-muted-foreground'>{item.deliveryVehicle.provinceTh}</p>
+								</div>
 							</div>
 						</div>
-					</div>
+					)}
 
 					<Separator />
 
@@ -337,18 +341,22 @@ export default function WarehouseItemDetailPage() {
 							</p>
 						</div>
 					)}
-					<div>
-						<p className='text-sm font-medium text-muted-foreground'>สร้างเมื่อ</p>
-						<p className='text-lg'>
-							{format(new Date(item.createdAt), 'dd/MM/yyyy HH:mm', { locale: th })}
-						</p>
-					</div>
-					<div>
-						<p className='text-sm font-medium text-muted-foreground'>อัปเดตล่าสุด</p>
-						<p className='text-lg'>
-							{format(new Date(item.updatedAt), 'dd/MM/yyyy HH:mm', { locale: th })}
-						</p>
-					</div>
+					{item.createdAt && (
+						<div>
+							<p className='text-sm font-medium text-muted-foreground'>สร้างเมื่อ</p>
+							<p className='text-lg'>
+								{format(new Date(item.createdAt), 'dd/MM/yyyy HH:mm', { locale: th })}
+							</p>
+						</div>
+					)}
+					{item.updatedAt && (
+						<div>
+							<p className='text-sm font-medium text-muted-foreground'>อัปเดตล่าสุด</p>
+							<p className='text-lg'>
+								{format(new Date(item.updatedAt), 'dd/MM/yyyy HH:mm', { locale: th })}
+							</p>
+						</div>
+					)}
 				</CardContent>
 			</Card>
 		</div>

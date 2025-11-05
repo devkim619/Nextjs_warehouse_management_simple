@@ -2,7 +2,6 @@ import { AppSidebar } from '@/components/layout/app-sidebar'
 import { Navbar } from '@/components/layout/navbar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
-import { WarehouseProvider } from '@/contexts/warehouse-context'
 import type { Metadata } from 'next'
 import { Noto_Sans_Thai } from 'next/font/google'
 import './globals.css'
@@ -26,15 +25,13 @@ export default function RootLayout({
 	return (
 		<html lang='th'>
 			<body className={`${notoSansThai.className} antialiased`}>
-				<WarehouseProvider>
-					<SidebarProvider>
-						<AppSidebar />
-						<SidebarInset className='flex flex-col w-full overflow-x-auto'>
-							<Navbar />
-							<main className='flex-1 w-full overflow-x-auto'>{children}</main>
-						</SidebarInset>
-					</SidebarProvider>
-				</WarehouseProvider>
+				<SidebarProvider>
+					<AppSidebar />
+					<SidebarInset className='flex flex-col w-full overflow-x-auto'>
+						<Navbar />
+						<main className='flex-1 w-full overflow-x-auto'>{children}</main>
+					</SidebarInset>
+				</SidebarProvider>
 				<Toaster richColors />
 			</body>
 		</html>

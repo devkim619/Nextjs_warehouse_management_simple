@@ -4,7 +4,11 @@
       "Bash(bun add:*)",
       "Bash(bun run dev:*)",
       "Bash(curl:*)",
-      "Bash(bun install:*)"
+      "Bash(bun install:*)",
+      "Bash(rm:*)",
+      "Bash(rmdir:*)",
+      "Bash(tree:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

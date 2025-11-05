@@ -43,7 +43,7 @@ export const s3Client = new S3Client({
  */
 export async function uploadFile(file: File, path: string): Promise<string> {
 	const buffer = Buffer.from(await file.arrayBuffer())
-	let uploadBuffer = buffer
+	let uploadBuffer: Buffer = buffer
 	let contentType = file.type
 
 	if (file.type && file.type.startsWith('image/')) {
