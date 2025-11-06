@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 
 import { WarehouseAddButton } from '@/components/warehouse/warehouse-add-button'
 import { WarehouseTableContent } from '@/components/warehouse/warehouse-table-content'
+import { supabaseClient } from '@/lib/supabase-client'
 import { WarehouseItem } from '@/types/warehouse'
 
 interface WarehouseClientWrapperProps {
@@ -21,13 +22,38 @@ export function WarehouseClientWrapper({ initialData }: WarehouseClientWrapperPr
 		setTimeout(() => setIsRefreshing(false), 500)
 	}
 
-	// Optional: Auto-refresh every 30 seconds for real-time updates
+	// Supabase Realtime subscription for instant updates
 	useEffect(() => {
-		const interval = setInterval(() => {
-			router.refresh()
-		}, 30000) // 30 seconds
+		// Subscribe to all changes in warehouse_items table
+		const channel = supabaseClient
+			.channel('warehouse-changes')
+			.on(
+				'postgres_changes',
+				{
+					event: '*', // Listen to INSERT, UPDATE, DELETE
+					schema: 'public',
+					table: 'warehouse_items',
+				},
+				(payload) => {
+					console.log('📡 Real-time update received:', payload)
+					// Refresh the page data when any change occurs
+					handleDataChange()
+				},
+			)
+			.subscribe((status) => {
+				if (status === 'SUBSCRIBED') {
+					console.log('✅ Real-time subscription active')
+				}
+				if (status === 'CHANNEL_ERROR') {
+					console.error('❌ Real-time subscription error')
+				}
+			})
 
-		return () => clearInterval(interval)
+		// Cleanup subscription on unmount
+		return () => {
+			console.log('🔌 Unsubscribing from real-time updates')
+			supabaseClient.removeChannel(channel)
+		}
 	}, [router])
 
 	return (

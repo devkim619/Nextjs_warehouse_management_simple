@@ -8,6 +8,15 @@ import { deleteFile, uploadFile } from '@/lib/storage'
 import { asc, eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 
+// ======= Types for Form Actions =======
+
+export type FormState = {
+	success: boolean
+	message?: string
+	errors?: Record<string, string[]>
+	data?: unknown
+}
+
 export interface CreateWarehouseInput {
 	branchId: string
 	categoryId: string
@@ -703,5 +712,167 @@ export async function deleteWarehouse(id: string) {
 	} catch (error) {
 		console.error('Error deleting warehouse:', error)
 		return { success: false, error: 'เกิดข้อผิดพลาดในการลบสินค้า' }
+	}
+}
+
+// ======= Form Actions for useFormState =======
+
+/**
+ * Create warehouse action for use with useFormState
+ */
+export async function createWarehouseAction(
+	_prevState: FormState | null,
+	formData: FormData,
+): Promise<FormState> {
+	try {
+		// Extract and validate form data
+		const branchId = formData.get('branchId') as string
+		const categoryId = formData.get('categoryId') as string
+		const productName = formData.get('productName') as string
+		const storageLocation = formData.get('storageLocation') as string
+		const entryDate = formData.get('entryDate') as string
+		const deliveryVehiclePlateNumber = formData.get('deliveryVehiclePlateNumber') as string
+		const deliveryVehicleProvinceId = formData.get('deliveryVehicleProvinceId') as string
+		const containerNumber = formData.get('containerNumber') as string
+		const palletCount = Number(formData.get('palletCount'))
+		const packageCount = Number(formData.get('packageCount'))
+		const itemCount = Number(formData.get('itemCount'))
+		const status = (formData.get('status') as string) || 'in_stock'
+		const exitDate = formData.get('exitDate') as string | null
+		const pickupVehiclePlateNumber = formData.get('pickupVehiclePlateNumber') as string | null
+		const pickupVehicleProvinceId = formData.get('pickupVehicleProvinceId') as string | null
+		const productImageFile = formData.get('productImage') as File | null
+
+		// Validation
+		const errors: Record<string, string[]> = {}
+
+		if (!branchId) errors.branchId = ['กรุณาเลือกสาขา']
+		if (!categoryId) errors.categoryId = ['กรุณาเลือกหมวดหมู่']
+		if (!productName) errors.productName = ['กรุณากรอกชื่อสินค้า']
+		if (!storageLocation) errors.storageLocation = ['กรุณากรอกที่จัดเก็บ']
+		if (!entryDate) errors.entryDate = ['กรุณาเลือกวันที่เข้า']
+		if (!deliveryVehiclePlateNumber) errors.deliveryVehiclePlateNumber = ['กรุณากรอกทะเบียนรถส่ง']
+		if (!deliveryVehicleProvinceId) errors.deliveryVehicleProvinceId = ['กรุณาเลือกจังหวัด']
+		if (!containerNumber) errors.containerNumber = ['กรุณากรอกหมายเลขตู้คอนเทนเนอร์']
+		if (!palletCount || palletCount < 1) errors.palletCount = ['จำนวนพาเลทต้องมากกว่า 0']
+		if (!packageCount || packageCount < 1) errors.packageCount = ['จำนวนแพ็คเกจต้องมากกว่า 0']
+		if (!itemCount || itemCount < 1) errors.itemCount = ['จำนวนชิ้นต้องมากกว่า 0']
+
+		if (Object.keys(errors).length > 0) {
+			return { success: false, errors, message: 'กรุณากรอกข้อมูลให้ครบถ้วน' }
+		}
+
+		// Call existing createWarehouse function
+		const input: CreateWarehouseInput = {
+			branchId,
+			categoryId,
+			productName,
+			storageLocation,
+			entryDate: new Date(entryDate),
+			deliveryVehiclePlateNumber,
+			deliveryVehicleProvinceId,
+			containerNumber,
+			productImageFile: productImageFile && productImageFile.size > 0 ? productImageFile : null,
+			palletCount,
+			packageCount,
+			itemCount,
+			status: status as 'in_stock' | 'out_for_delivery' | 'delivered',
+			exitDate: exitDate ? new Date(exitDate) : undefined,
+			pickupVehiclePlateNumber: pickupVehiclePlateNumber || undefined,
+			pickupVehicleProvinceId: pickupVehicleProvinceId || undefined,
+		}
+
+		const result = await createWarehouse(input)
+
+		if (result.success) {
+			return {
+				success: true,
+				message: 'เพิ่มสินค้าเรียบร้อยแล้ว',
+				data: result.data,
+			}
+		}
+
+		return {
+			success: false,
+			message: result.error || 'เกิดข้อผิดพลาด',
+		}
+	} catch (error) {
+		console.error('Error in createWarehouseAction:', error)
+		return {
+			success: false,
+			message: 'เกิดข้อผิดพลาดในการเพิ่มสินค้า',
+		}
+	}
+}
+
+/**
+ * Update warehouse action for use with useFormState
+ */
+export async function updateWarehouseAction(
+	id: string,
+	_prevState: FormState | null,
+	formData: FormData,
+): Promise<FormState> {
+	try {
+		// Extract form data
+		const branchId = formData.get('branchId') as string | null
+		const categoryId = formData.get('categoryId') as string | null
+		const productName = formData.get('productName') as string | null
+		const storageLocation = formData.get('storageLocation') as string | null
+		const entryDate = formData.get('entryDate') as string | null
+		const deliveryVehiclePlateNumber = formData.get('deliveryVehiclePlateNumber') as string | null
+		const deliveryVehicleProvinceId = formData.get('deliveryVehicleProvinceId') as string | null
+		const containerNumber = formData.get('containerNumber') as string | null
+		const palletCount = formData.get('palletCount') ? Number(formData.get('palletCount')) : null
+		const packageCount = formData.get('packageCount') ? Number(formData.get('packageCount')) : null
+		const itemCount = formData.get('itemCount') ? Number(formData.get('itemCount')) : null
+		const status = formData.get('status') as string | null
+		const exitDate = formData.get('exitDate') as string | null
+		const pickupVehiclePlateNumber = formData.get('pickupVehiclePlateNumber') as string | null
+		const pickupVehicleProvinceId = formData.get('pickupVehicleProvinceId') as string | null
+		const productImageFile = formData.get('productImage') as File | null
+
+		// Build update data (only include fields that were provided)
+		const updateData: Partial<CreateWarehouseInput> = {}
+
+		if (branchId) updateData.branchId = branchId
+		if (categoryId) updateData.categoryId = categoryId
+		if (productName) updateData.productName = productName
+		if (storageLocation) updateData.storageLocation = storageLocation
+		if (entryDate) updateData.entryDate = new Date(entryDate)
+		if (deliveryVehiclePlateNumber) updateData.deliveryVehiclePlateNumber = deliveryVehiclePlateNumber
+		if (deliveryVehicleProvinceId) updateData.deliveryVehicleProvinceId = deliveryVehicleProvinceId
+		if (containerNumber) updateData.containerNumber = containerNumber
+		if (palletCount !== null) updateData.palletCount = palletCount
+		if (packageCount !== null) updateData.packageCount = packageCount
+		if (itemCount !== null) updateData.itemCount = itemCount
+		if (status) updateData.status = status as 'in_stock' | 'out_for_delivery' | 'delivered'
+		if (exitDate) updateData.exitDate = new Date(exitDate)
+		if (pickupVehiclePlateNumber) updateData.pickupVehiclePlateNumber = pickupVehiclePlateNumber
+		if (pickupVehicleProvinceId) updateData.pickupVehicleProvinceId = pickupVehicleProvinceId
+		if (productImageFile && productImageFile.size > 0) {
+			updateData.productImageFile = productImageFile
+		}
+
+		const result = await updateWarehouse(id, updateData)
+
+		if (result.success) {
+			return {
+				success: true,
+				message: 'อัปเดตสินค้าเรียบร้อยแล้ว',
+				data: result.data,
+			}
+		}
+
+		return {
+			success: false,
+			message: result.error || 'เกิดข้อผิดพลาด',
+		}
+	} catch (error) {
+		console.error('Error in updateWarehouseAction:', error)
+		return {
+			success: false,
+			message: 'เกิดข้อผิดพลาดในการอัปเดตสินค้า',
+		}
 	}
 }
